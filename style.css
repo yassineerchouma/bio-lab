@@ -1,0 +1,210 @@
+/* --- Base & Layout --- */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { 
+    font-family: 'Inter', 'Segoe UI', sans-serif; 
+    background-color: #f8fafc; 
+    color: #1e293b; 
+    line-height: 1.6; 
+}
+
+header { 
+    background: linear-gradient(135deg, #0f172a, #1e293b); 
+    color: white; 
+    padding: 2rem; 
+    text-align: center; 
+    border-bottom: 4px solid #3b82f6;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.app-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 2rem;
+    max-width: 1300px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+}
+
+/* --- Sidebar & History --- */
+.history-sidebar {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    height: calc(100vh - 180px);
+    position: sticky;
+    top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.history-sidebar h3 { 
+    font-size: 0.8rem; 
+    text-transform: uppercase; 
+    color: #64748b; 
+    letter-spacing: 1px; 
+    margin-bottom: 1rem;
+}
+
+#history-list { 
+    list-style: none; 
+    flex-grow: 1; 
+    overflow-y: auto; 
+    margin-bottom: 1rem;
+}
+
+#history-list li {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #f1f5f9;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    border: 1px solid transparent;
+    transition: 0.2s;
+}
+
+#history-list li:hover { background: #e0f2fe; border-color: #7dd3fc; }
+#history-list li strong { display: block; color: #0f172a; overflow: hidden; text-overflow: ellipsis; }
+#history-list li small { color: #64748b; font-size: 0.75rem; }
+
+/* --- Cards & Inputs --- */
+.card { 
+    background: white; 
+    padding: 2rem; 
+    border-radius: 12px; 
+    border: 1px solid #e2e8f0; 
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+label { font-size: 0.75rem; font-weight: 700; color: #475569; display: block; margin-bottom: 0.5rem; }
+
+input[type="text"] {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-family: 'Fira Code', monospace;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* --- Buttons --- */
+.button-group { display: flex; gap: 12px; }
+.btn { 
+    padding: 10px 24px; 
+    border-radius: 8px; 
+    border: none; 
+    font-weight: 600; 
+    cursor: pointer; 
+    transition: 0.2s; 
+    font-size: 0.9rem;
+}
+.primary { background: #3b82f6; color: white; }
+.secondary { background: #10b981; color: white; }
+.neutral { background: #64748b; color: white; }
+.btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+/* --- Results Display & Alignment Fix --- */
+.results-box {
+    margin-top: 1rem;
+    padding: 1.5rem;
+    background: #f8fafc;
+    border-radius: 10px;
+    border-left: 5px solid #3b82f6;
+    overflow-y: auto;
+    max-height: 600px;
+}
+
+.protein-display-box {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    margin-top: 10px;
+    font-family: 'Courier New', monospace;
+    color: #334155;
+    text-align: center; /* CENTER ALIGNMENT FIX */
+    line-height: 2.2;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.stop-codon {
+    color: #e11d48;
+    font-weight: bold;
+    border: 1px solid #e11d48;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #fff1f2;
+}
+
+.loader {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3b82f6;
+    border-radius: 50%;
+    width: 20px; height: 20px;
+    animation: spin 1s linear infinite;
+    display: inline-block; vertical-align: middle;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+/* --- FIXED NOTIFICATION STYLE --- */
+.download-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px; /* Usually cleaner on the right, change to 'left' if you prefer */
+    background: #10b981; /* Success Green */
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    font-size: 0.9rem;
+    font-weight: 600;
+    z-index: 9999; /* Ensures it stays on TOP of everything */
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+/* Custom Toast to override the feeling of the browser popup */
+.custom-alert {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    z-index: 10000;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    border: 1px solid #3b82f6;
+    animation: fadeInUp 0.4s ease;
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+/* Push the main content down and center it more 
+   to avoid the top-left/middle download popup area */
+.app-layout {
+    margin-top: 5rem; /* Moves everything down away from the top area */
+    justify-content: center;
+}
+
+main {
+    max-width: 900px; /* Keeps the cards centered and tight */
+    margin: 0 auto;
+}
+
+/* Add some extra space between the DNA input and the buttons 
+   so even if a popup covers the top of the card, the buttons are visible */
+.button-group {
+    margin-top: 2rem;
+    justify-content: flex-end; /* Move buttons to the right side of the card */
+}

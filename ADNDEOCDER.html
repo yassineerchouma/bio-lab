@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>BioTech Lab Portal</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header><h1>Portail BioTech Lab</h1></header>
+
+    <div class="app-layout">
+        <aside class="history-sidebar">
+            <h3>Historique (Top 5)</h3>
+            <ul id="history-list"><li>Aucune analyse</li></ul>
+            <button id="clear-history" class="btn" style="width:100%; margin-top:10px;">Effacer</button>
+        </aside>
+
+        <main>
+            <section class="card">
+                <label>SÉQUENCE ADN</label>
+                <input type="text" id="dna" placeholder="ATGC...">
+                <div class="button-group">
+                    <button id="decode-btn" class="btn primary">DÉCODER</button>
+                    <button id="search-btn" class="btn secondary">NCBI BLAST</button>
+                    <button id="pdf-btn" class="btn neutral" style="display:none;">PDF</button>
+                </div>
+            </section>
+
+            <section class="card">
+                <h3>Résultats</h3>
+                <div id="loader" style="display:none; margin:10px 0;"><div class="loader"></div>Recherche...</div>
+                <div id="results-display" class="results-box">Prêt.</div>
+            </section>
+        </main>
+    </div>
+<footer style="background: #0f172a; color: #94a3b8; text-align: center; padding: 20px; margin-top: 40px; border-top: 1px solid #1e293b; font-size: 0.85rem;">
+    <p>&copy; 2026 <strong>Yassine Erchouma</strong>. Tous droits réservés.</p>
+    <p style="margin-top: 5px; opacity: 0.7;">Développé pour l'analyse génomique et la recherche éducative.</p>
+</footer>
+<script>
+    const dnaInput = document.getElementById("dna");
+    const resultsDisplay = document.getElementById("results-display");
+    const historyList = document.getElementById("history-list");
+    const loader = document.getElementById("loader");
+    const pdfBtn = document.getElementById("pdf-btn");
+
+    // Global State
+    let currentData = { sequence: "", translation: "", matches: [], count: 0 };
+    let history = JSON.parse(localStorage.getItem("bioHistory")) || [];
+
+    updateHistoryUI();
+
+    // Force Uppercase ATGC
+    dnaInput.oninput = () => dnaInput.value = dnaInput.value.toUpperCase().replace(/[^ATCG]/g, "");
+
+    // --- DECODE ---
+    document.getElementById("decode-btn").onclick = async () => {
+        const seq = dnaInput.value.trim();
+        if (seq.length < 3) return;
+
+        try {
+            const res = await fetch('http://127.0.0.1:5000/decode', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ sequence: seq })
+            });
+            const data = await res.json();
+            
+            // Merge into current state
+            currentData = { ...data, matches: [] };
+            
+            updateUI();
+            saveOrUpdateHistory();
+        } catch (e) { alert("Erreur serveur Flask"); }
+    };
+
+    // --- NCBI BLAST ---
+    document.getElementById("search-btn").onclick = async () => {
+        if (!currentData.sequence) {
+            alert("Veuillez d'abord décoder une séquence.");
+            return;
+        }
+        
+        loader.style.display = "block";
+        try {
+            const res = await fetch('http://127.0.0.1:5000/search_ncbi', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ sequence: currentData.sequence })
+            });
+            const data = await res.json();
+            
+            currentData.matches = data.matches || [];
+            updateUI();
+            saveOrUpdateHistory();
+        } catch (e) { alert("Erreur de connexion NCBI"); }
+        finally { loader.style.display = "none"; }
+    };
+
+    // --- UI ENGINE ---
+    function updateUI() {
+        if (!currentData.translation) return;
+
+        // Apply Stop Codon Styling
+        const styledTranslation = currentData.translation
+            .replace(/🛑 STOP/g, '<span class="stop-codon">🛑 STOP</span>');
+
+        let html = `
+            <div style="margin-bottom: 25px;">
+                <strong style="color: #1a2a6c; font-size: 0.8rem; text-transform: uppercase;">Traduction Protéique (${currentData.count} AA)</strong>
+                <div class="protein-display-box">${styledTranslation}</div>
+            </div>
+        `;
+
+        html += `<div><strong style="color: #1a2a6c; font-size: 0.8rem; text-transform: uppercase;">Matchs NCBI (Top 5)</strong>`;
+        
+        if (currentData.matches && currentData.matches.length > 0) {
+            html += `<ul style="list-style: none; padding: 0; margin-top: 10px;">` + 
+                currentData.matches.map(m => `
+                    <li style="padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                        <div style="font-weight: 700; color: #1e293b;">${m.title}</div>
+                        <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">E-Value: <span style="color: #10b981;">${m.e_value}</span></div>
+                    </li>
+                `).join('') + `</ul>`;
+        } else {
+            html += `<p style="color: #94a3b8; font-size: 0.85rem; margin-top: 10px; font-style: italic;">Aucun match BLAST disponible pour cette session.</p>`;
+        }
+        html += `</div>`;
+
+        resultsDisplay.innerHTML = html;
+        pdfBtn.style.display = "inline-block";
+    }
+
+    // --- HISTORY ENGINE ---
+    function saveOrUpdateHistory() {
+        const index = history.findIndex(h => h.sequence === currentData.sequence);
+        if (index !== -1) {
+            history[index] = { ...currentData };
+        } else {
+            history.unshift({ ...currentData });
+        }
+        if(history.length > 5) history.pop();
+        localStorage.setItem("bioHistory", JSON.stringify(history));
+        updateHistoryUI();
+    }
+
+    function updateHistoryUI() {
+        if (history.length === 0) {
+            historyList.innerHTML = "<li style='color:#94a3b8; font-style:italic;'>Aucune analyse</li>";
+            return;
+        }
+        historyList.innerHTML = history.map((h, i) => `
+            <li onclick="loadFromHistory(${i})">
+                <strong>${h.sequence.substring(0,15)}...</strong>
+                <small>${h.matches.length > 0 ? '✅ BLAST' : '🧬 Traduction'}</small>
+            </li>
+        `).join('');
+    }
+
+    window.loadFromHistory = (i) => {
+        currentData = { ...history[i] };
+        dnaInput.value = currentData.sequence;
+        updateUI();
+    };
+
+    document.getElementById("clear-history").onclick = () => {
+        history = [];
+        localStorage.removeItem("bioHistory");
+        updateHistoryUI();
+        pdfBtn.style.display = "none";
+        resultsDisplay.innerHTML = "Prêt.";
+    };
+
+    pdfBtn.onclick = async () => {
+    // Show our own clean alert first
+    const alert = document.createElement("div");
+    alert.className = "custom-alert";
+    alert.innerHTML = "📊 Génération du rapport de BioTech...";
+    document.body.appendChild(alert);
+
+    try {
+        const res = await fetch('http://127.0.0.1:5000/export_pdf', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(currentData)
+        });
+        
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Rapport_BioTech_${new Date().getTime()}.pdf`;
+        a.click();
+
+        alert.innerHTML = "✅ Rapport prêt dans vos téléchargements !";
+        setTimeout(() => alert.remove(), 3000);
+    } catch (e) {
+        alert.innerHTML = "❌ Erreur lors de l'export.";
+        setTimeout(() => alert.remove(), 3000);
+    }
+};
+</script>
+</body>
+</html>
