@@ -59,7 +59,7 @@
         if (seq.length < 3) return;
 
         try {
-            const res = await fetch('http://127.0.0.1:5000/decode', {
+            const res = await fetch('https://yassineerchouma.pythonanywhere.com/decode', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ sequence: seq })
@@ -83,7 +83,7 @@
         
         loader.style.display = "block";
         try {
-            const res = await fetch('http://127.0.0.1:5000/search_ncbi', {
+            const res = await fetch('https://yassineerchouma.pythonanywhere.com/search_ncbi', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ sequence: currentData.sequence })
@@ -179,7 +179,7 @@
     document.body.appendChild(alert);
 
     try {
-        const res = await fetch('http://127.0.0.1:5000/export_pdf', {
+        const res = await fetch('https://yassineerchouma.pythonanywhere.com/export_pdf', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(currentData)
