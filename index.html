@@ -121,8 +121,6 @@
     // --- Dark Mode Logic ---
     const themeToggle = document.getElementById('theme-toggle');
     const body = document.body;
-
-    // Check l-preference dyal l-user (LocalStorage)
     if (localStorage.getItem('theme') === 'dark') {
         body.classList.add('dark-mode');
         themeToggle.textContent = '☀️';
