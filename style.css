@@ -70,7 +70,8 @@ body {
 }
 
 @media (max-width: 768px) {
-    .header-content { justify-content: center; text-align: center; flex-direction: column; gap: 5px; }
+    .app-layout {display:flex;padding:0 1.5rem; justify-content: center; text-align: center; flex-direction: column; gap: 1.5rem; }
+    .history-sidebar,.card{width:100%}
 }
 
 .app-layout {
