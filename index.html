@@ -2,11 +2,13 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Portail pour l'analyse génomique et la recherche éducative">
     <meta  name="author" content="Yassine Erchouma">
     <meta name="keywords" content="BioTech, ADN, génomique, NCBI BLAST, éducation, science,BioTech Lab Portal">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>BioTech Lab Portal</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -54,16 +56,24 @@
             <section class="card">
                 <label>SÉQUENCE ADN</label>
                 <input type="text" id="dna" placeholder="ATGC...">
+                <div id="dna-message" class="dna-message"></div>
+                <div class="dna-info" id="dna-info">
+                    <span id="dna-length">Longueur: 0</span>
+                    <span id="gc-content">GC: 0%</span>
+                    <span id="protein-size">Protéine estimée: 0 AA</span>
+                    <span id="codon-frequency">Codons: -</span>
+                </div>
                 <div class="button-group">
                     <button id="decode-btn" class="btn primary">DÉCODER</button>
                     <button id="search-btn" class="btn secondary">NCBI BLAST</button>
                     <button id="pdf-btn" class="btn neutral" style="display:none;">PDF</button>
+                    <button id="copy-results-btn" class="btn neutral" style="display:none;">COPIER RÉSULTAT</button>
                 </div>
             </section>
 
             <section class="card">
                 <h3>Résultats</h3>
-                <div id="loader" style="display:none; margin:10px 0;"><div class="loader"></div>Recherche...</div>
+                <div id="loader" class="loader-container" style="display:none; margin:10px 0;"></div>
                 <div id="results-display" class="results-box">Prêt.</div>
             </section>
         </main>
@@ -74,7 +84,7 @@
 </footer>
 
 <div class="fab-container">
-    <button id="theme-toggle" class="fab-btn" title="Mode Sombre/Clair">⏾</button>
+    <button id="theme-toggle" class="fab-btn" title="Mode Sombre/Clair">🌙</button>
 </div>
 
 
@@ -99,7 +109,14 @@
     const historyList = document.getElementById("history-list");
     const loader = document.getElementById("loader");
     const pdfBtn = document.getElementById("pdf-btn");
-    
+    const copyResultsBtn = document.getElementById("copy-results-btn");
+    const dnaMessage = document.getElementById("dna-message");
+    const dnaLengthLabel = document.getElementById("dna-length");
+    const gcContentLabel = document.getElementById("gc-content");
+    const proteinSizeLabel = document.getElementById("protein-size");
+    const codonFrequencyLabel = document.getElementById("codon-frequency");
+
+    const ncbiCache = new Map();
     
     // --- Dark Mode Logic ---
     const themeToggle = document.getElementById('theme-toggle');
@@ -108,13 +125,15 @@
     // Check l-preference dyal l-user (LocalStorage)
     if (localStorage.getItem('theme') === 'dark') {
         body.classList.add('dark-mode');
-        themeToggle.textContent = '☼';
+        themeToggle.textContent = '☀️';
+    } else {
+        themeToggle.textContent = '🌙';
     }
 
     themeToggle.onclick = () => {
         body.classList.toggle('dark-mode');
         const isDark = body.classList.contains('dark-mode');
-        themeToggle.textContent = isDark ? '☼' : '⏾';
+        themeToggle.textContent = isDark ? '☀️' : '🌙';
         localStorage.setItem('theme', isDark ? 'dark' : 'light');
     };
 
@@ -127,16 +146,73 @@
     // Global State
     let currentData = { sequence: "", translation: "", matches: [], count: 0 };
     let history = JSON.parse(localStorage.getItem("bioHistory")) || [];
+    let ncbiAbortController = null;
+    let ncbiSearchSequence = null;
 
     updateHistoryUI();
 
-    // Force Uppercase ATGC
-    dnaInput.oninput = () => dnaInput.value = dnaInput.value.toUpperCase().replace(/[^ATCG]/g, "");
+    function formatSequence(sequence) {
+        const upper = sequence.toUpperCase();
+        const cleaned = upper.replace(/[^ATCG]/g, "");
+        const removed = upper.length - cleaned.length;
+        if (removed > 0) {
+            dnaMessage.textContent = `Caractères invalides supprimés : ${removed}`;
+        } else {
+            dnaMessage.textContent = "";
+        }
+        return cleaned;
+    }
+
+    function updateSequenceStats(sequence) {
+        const len = sequence.length;
+        const gcCount = (sequence.match(/[GC]/g) || []).length;
+        const gcPct = len > 0 ? ((gcCount / len) * 100).toFixed(1) : 0;
+        const proteins = Math.floor(len / 3);
+
+        const codonCounts = {};
+        for (let i = 0; i <= sequence.length - 3; i += 3) {
+            const codon = sequence.substr(i, 3);
+            if (codon.length === 3) {
+                codonCounts[codon] = (codonCounts[codon] || 0) + 1;
+            }
+        }
+        const topCodons = Object.entries(codonCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([codon, count]) => `${codon}:${count}`)
+            .join(', ') || '-';
+
+        dnaLengthLabel.textContent = `Longueur: ${len}`;
+        gcContentLabel.textContent = `GC: ${gcPct}%`;
+        proteinSizeLabel.textContent = `Protéine estimée: ${proteins} AA`;
+        codonFrequencyLabel.textContent = `Top codons: ${topCodons}`;
+
+        if (len > 0 && len < 12) {
+            dnaMessage.textContent = "Séquence trop courte pour NCBI BLAST (min 12)";
+        } else if (dnaMessage.textContent.startsWith('Caractères invalides') || dnaMessage.textContent.startsWith('Séquence trop courte')) {
+            // keep existing message if already set
+        } else {
+            dnaMessage.textContent = "";
+        }
+    }
+
+    dnaInput.oninput = () => {
+        const clean = formatSequence(dnaInput.value);
+        dnaInput.value = clean;
+        updateSequenceStats(clean);
+    };
 
     // --- DECODE ---
     document.getElementById("decode-btn").onclick = async () => {
         const seq = dnaInput.value.trim();
         if (seq.length < 3) return;
+
+        // Abort any ongoing NCBI search
+        if (ncbiAbortController) {
+            ncbiAbortController.abort();
+            ncbiAbortController = null;
+        }
+        ncbiSearchSequence = null;
 
         try {
             const res = await fetch('https://yassineerchouma.pythonanywhere.com/decode', {
@@ -145,10 +221,18 @@
                 body: JSON.stringify({ sequence: seq })
             });
             const data = await res.json();
-            
-            // Merge into current state
-            currentData = { ...data, matches: [] };
-            
+
+            // Keep existing NCBI matches if sequence unchanged and exists in cache
+            let matches = [];
+            if (seq === currentData.sequence && currentData.matches && currentData.matches.length > 0) {
+                matches = currentData.matches;
+            } else if (ncbiCache.has(seq)) {
+                matches = ncbiCache.get(seq);
+            }
+
+            currentData = { ...data, matches };
+            updateSequenceStats(currentData.sequence);
+
             updateUI();
             saveOrUpdateHistory();
         } catch (e) { alert("Erreur serveur Flask"); }
@@ -160,21 +244,68 @@
             alert("Veuillez d'abord décoder une séquence.");
             return;
         }
-        
-        loader.style.display = "block";
+        if (currentData.sequence.length < 12) {
+            alert("Séquence trop courte pour NCBI BLAST (min 12).")
+            return;
+        }
+
+        // If current data already has NCBI matches, reuse them (no extra load)
+        if (currentData.matches && currentData.matches.length > 0) {
+            showToast("✅ Résultats NCBI déjà disponibles (cache local). ");
+            updateUI();
+            saveOrUpdateHistory();
+            return;
+        }
+
+        if (ncbiCache.has(currentData.sequence)) {
+            currentData.matches = ncbiCache.get(currentData.sequence);
+            showToast("✅ Résultats NCBI récupérés depuis cache");
+            updateUI();
+            saveOrUpdateHistory();
+            return;
+        }
+
+        // Abort previous search if still running
+        if (ncbiAbortController) {
+            ncbiAbortController.abort();
+        }
+
+        ncbiAbortController = new AbortController();
+        ncbiSearchSequence = currentData.sequence;
+
+        loader.innerHTML = '<div class="loader"></div>Recherche NCBI en cours...';
+        loader.style.display = "flex";
+
         try {
             const res = await fetch('https://yassineerchouma.pythonanywhere.com/search_ncbi', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ sequence: currentData.sequence })
+                body: JSON.stringify({ sequence: currentData.sequence }),
+                signal: ncbiAbortController.signal
             });
             const data = await res.json();
-            
-            currentData.matches = data.matches || [];
-            updateUI();
-            saveOrUpdateHistory();
-        } catch (e) { alert("Erreur de connexion NCBI"); }
-        finally { loader.style.display = "none"; }
+
+            // Only apply results if sequence hasn't changed
+            if (currentData.sequence === ncbiSearchSequence) {
+                currentData.matches = data.matches || [];
+                ncbiCache.set(currentData.sequence, currentData.matches);
+                updateUI();
+                saveOrUpdateHistory();
+            } else {
+                // Silently discard results as user switched sequences
+                console.log("NCBI results ignored - sequence changed during search");
+            }
+        } catch (e) {
+            if (e.name === "AbortError") {
+                console.log("NCBI search cancelled");
+                return;
+            }
+            alert("Erreur de connexion NCBI");
+            resultsDisplay.innerHTML = "Erreur lors de la recherche NCBI.";
+        } finally {
+            loader.style.display = "none";
+            loader.innerHTML = '';
+        }
     };
 
     // --- UI ENGINE ---
@@ -209,7 +340,17 @@
 
         resultsDisplay.innerHTML = html;
         pdfBtn.style.display = "inline-block";
+        copyResultsBtn.style.display = "inline-flex";
     }
+
+    copyResultsBtn.onclick = async () => {
+        try {
+            await navigator.clipboard.writeText(resultsDisplay.innerText.trim());
+            showToast('📋 Résultats copiés dans le presse-papiers');
+        } catch {
+            alert('Impossible de copier.');
+        }
+    };
 
     // --- HISTORY ENGINE ---
     function saveOrUpdateHistory() {
@@ -240,8 +381,18 @@
     }
 
     window.loadFromHistory = (i) => {
+        // Abort any ongoing NCBI search
+        if (ncbiAbortController) {
+            ncbiAbortController.abort();
+            ncbiAbortController = null;
+        }
+        ncbiSearchSequence = null;
+
         currentData = { ...history[i] };
         dnaInput.value = currentData.sequence;
+        updateSequenceStats(currentData.sequence);
+        loader.style.display = "none";
+        loader.innerHTML = '';
         updateUI();
     };
 
